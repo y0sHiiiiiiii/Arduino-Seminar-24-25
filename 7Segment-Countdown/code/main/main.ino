@@ -19,7 +19,7 @@ void setup() {
 void loop() {
   for (int i = 0; i <= 9; i++) {
     displayDigit(i);
-    delay(1000);  // Delay for 1 second
+    delay(1000);  // Delay for 1  second
   }
   // Reset to 0
   displayDigit(0);
