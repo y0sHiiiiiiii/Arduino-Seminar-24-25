@@ -1,91 +1,61 @@
-// Constants for pin numbers
-const int BUTTON_PIN = 3;
-const int GREEN_PIN = 10;
-const int RED_PIN = 11;
-const int BLUE_PIN = 9;
+#include <Arduino.h>
+#include <MHZ19.h>
+#include <SoftwareSerial.h>
+#include <dht11.h>
 
-// Variables
-bool partyOn = false; // Flag to track party state
+#define RX_PIN 2
+#define TX_PIN 3
+#define BAUDRATE 9600
+#define DHT11PIN 4
+#define DATA_INTERVAL 3000  // Print data every 3 seconds (3000 milliseconds)
+
+MHZ19 myMHZ19;
+SoftwareSerial mySerial(RX_PIN, TX_PIN);
+dht11 DHT11(DHT11PIN);
+
+unsigned long getDataTimer = 0;
 
 void setup() {
-  // Initialize serial communication
   Serial.begin(9600);
 
-  // Initialize button pin as input with internal pull-up resistor
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-  // Initialize LED pins as outputs
-  pinMode(GREEN_PIN, OUTPUT);
-  pinMode(RED_PIN, OUTPUT);
-  pinMode(BLUE_PIN, OUTPUT);
+  mySerial.begin(BAUDRATE);
+  myMHZ19.begin(mySerial);
+  myMHZ19.autoCalibration();
 }
 
 void loop() {
-  // Read button state
-  bool buttonState = digitalRead(BUTTON_PIN);
+  if (millis() - getDataTimer >= DATA_INTERVAL) {
+    int CO2 = myMHZ19.getCO2();
+    int8_t Temp = myMHZ19.getTemperature();
+    int MicVolume = analogRead(0);
+    int chk = DHT11.read();
 
-  // Check for button press (transition from HIGH to LOW)
-  if (buttonState == LOW) {
-    // Debounce delay
-    delay(50);
-    buttonState = digitalRead(BUTTON_PIN); // Read again after debounce delay
+    Serial.println();
 
-    if (buttonState == LOW) {
-      // Button is pressed, toggle party state
-      partyOn = !partyOn;
-      Serial.println(partyOn ? "Party ON" : "Party OFF");
-
-      // Perform action based on current party state
-      switch (partyOn) {
-        case true:
-          // Party is ON, perform party action (e.g., light show)
-          rgbLightShow();
-          break;
-        case false:
-          // Party is OFF, turn off all LEDs
-          analogWrite(RED_PIN, 0);
-          analogWrite(GREEN_PIN, 0);
-          analogWrite(BLUE_PIN, 0);
-          break;
-      }
-
-      // Wait for button release
-      while (digitalRead(BUTTON_PIN) == LOW) {
-        delay(50); // Debounce delay
-      }
+    // Print CO2 and temperature (if MH-Z19 sensor is available and functioning)
+    if (!isnan(CO2) && !isnan(Temp)) {
+      Serial.print("CO2 (ppm): ");
+      Serial.println(CO2);
+      Serial.print("Temperature (C): ");
+      Serial.println(Temp);
+    } else {
+      Serial.println("MH-Z19 sensor data unavailable");
     }
-  }
-}
 
-// Function to perform disco light show
-void rgbLightShow() {
-  // Array of colors (R, G, B values)
-  int colors[][3] = {
-    {255, 0, 0},    // Red
-    {255, 127, 0},  // Orange
-    {255, 255, 0},  // Yellow
-    {0, 255, 0},    // Green
-    {0, 0, 255},    // Blue
-    {75, 0, 130},   // Indigo
-    {148, 0, 211}   // Violet
-  };
+    // Print microphone volume
+    Serial.print("Mic Volume: ");
+    Serial.println(MicVolume);
 
-  int numColors = sizeof(colors) / sizeof(colors[0]);
-
-  // Loop through each color
-  while (partyOn) {
-    for (int i = 0; i < numColors; i++) {
-      // Set the color
-      analogWrite(RED_PIN, colors[i][0]);
-      analogWrite(GREEN_PIN, colors[i][1]);
-      analogWrite(BLUE_PIN, colors[i][2]);
-
-      // Blink the LEDs
-      delay(500);  // Wait for 0.5 seconds
-      analogWrite(RED_PIN, 0);
-      analogWrite(GREEN_PIN, 0);
-      analogWrite(BLUE_PIN, 0);
-      delay(500);  // Wait for 0.5 seconds
+    // Print humidity and temperature (if DHT11 sensor is available and functioning)
+    if (chk == 0) {
+      Serial.print("Humidity (%): ");
+      Serial.println((float)DHT11.humidity, 2);
+      Serial.print("Temperature (C): ");
+      Serial.println((float)DHT11.temperature, 2);
+    } else {
+      Serial.println("DHT11 sensor error");
     }
+
+    getDataTimer = millis();
   }
 }
